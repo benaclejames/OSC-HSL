@@ -28,20 +28,27 @@ pub(crate) struct HsOp {
 }
 
 impl HsOp {
-    pub(crate) fn new(data: [u8; 1024]) -> Result<Self, &'static HsOpError> {
+    const HEADER: &'static str = "#hsop\0\0\0"; // Kinda ugly, but all elements need to be quantized to 4 bytes
+
+    pub(crate) fn new(data: &Vec<u8>) -> Result<Self, &'static HsOpError> {
         // Ensure this is a valid packet by checking it starts with #hsop
-        let mut header = [0; 6];
-        header.copy_from_slice(&data[0..6]);
+        let mut header = [0; 8];
+        header.copy_from_slice(&data[0..8]);
         let header = String::from_utf8(header.to_vec()).unwrap();
-        if data.len() < 6 || header != "#hsop\0" {
+        if header != HsOp::HEADER {
             return Err(&HsOpError { details: "Invalid HandshakeOperation header" });
         }
 
-        // Read the next byte to determine the operation
-        let op = data[6];
+        // Read the next byte to ensure it's a comma, following our header format
+        if data[8] != b',' {
+            return Err(&HsOpError { details: "Invalid HandshakeOperation type tag" });
+        }
+
+        // Read the next byte to get the ID
+        let op = data[9];
 
         // Read the rest of the packet to get the payload
-        let payload_data = &data[7..];
+        let payload_data = &data[10..];
 
         Ok(HsOp {
             id: op,
@@ -51,8 +58,10 @@ impl HsOp {
 
     pub(crate) fn serialize(&self) -> Vec<u8> {
         let mut bytes = Vec::new();
-        bytes.extend("#hsop\0".as_bytes());
+        bytes.extend(HsOp::HEADER.as_bytes());
+        bytes.push(b',');
         bytes.push(self.id);
+        bytes.extend([0, 0]);
         bytes.extend(&self.data);
         bytes
     }

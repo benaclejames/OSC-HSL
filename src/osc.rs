@@ -17,6 +17,13 @@ impl fmt::Display for OscError {
     }
 }
 
+/// Quantize a usize by rounding up when needed. Only use this when the size of the previously
+/// read data is unknown, and you need to read the next 4-byte aligned data. Otherwise, hardcode.
+///
+/// # Arguments
+///
+/// * `value`: Mutable reference to the value to be quantized/rounded
+/// * `quant`:  What to quantize to.
 fn quantize(value: &mut usize, quant: usize) {
     if *value % quant != 0 {
         *value += quant - (*value % quant);
@@ -70,6 +77,23 @@ impl OscMessage {
     }
 
     pub(crate) fn serialize(&self) -> Vec<u8> {
-        unimplemented!()
+        let mut bytes = Vec::new();
+
+        // Write the address
+        bytes.extend(self.address.as_bytes());
+        bytes.push(0);
+
+        // Align the index to the next multiple of 4 if it isn't already
+        quantize(&mut bytes.len(), 4);
+
+        // Write the type tag
+        bytes.push(b',');
+        bytes.push(self.type_tag as u8);
+        bytes.extend([0, 0]);
+
+        // Write the data
+        bytes.extend(&self.data);
+
+        bytes
     }
 }
